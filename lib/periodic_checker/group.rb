@@ -7,17 +7,22 @@ module PeriodicChecker
     end
 
     def initialize(&block)
-      @checkers = []
+      @watchers = []
       @running = false
       block.call(self) if block_given?
     end
 
     def each(&block)
-      @checkers.each(&block)
+      @watchers.each(&block)
     end
 
-    def add(*args, &block)
-      @checkers << Watch.new(*args, &block)
+    def add_watcher(watch)
+      @watchers << watch
+      watch
+    end
+
+    def every(*args, &block)
+      self.add_watcher(Watch.new(*args, &block))
     end
 
     def running?
@@ -26,8 +31,8 @@ module PeriodicChecker
 
     def start
       unless self.running?
-        self.each do |checker|
-          checker.start
+        self.each do |watcher|
+          watcher.start
         end
         @running = true
       end
@@ -36,8 +41,8 @@ module PeriodicChecker
 
     def stop
       if self.running?
-        self.each do |checker|
-          checker.stop
+        self.each do |watcher|
+          watcher.stop
         end
         @running = false
       end

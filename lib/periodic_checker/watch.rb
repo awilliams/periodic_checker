@@ -1,16 +1,17 @@
 module PeriodicChecker
   class Watch
-    # if proc_to_check is nil, an update is always triggered
-    def initialize(interval, proc_to_check = nil, &on_change)
+    attr_reader :interval
+
+    def initialize(interval)
       @interval = interval
-      @proc_to_check = proc_to_check
-      @previous_value = @proc_to_check && @proc_to_check.call
-      @block = on_change
+      @previous_value = nil
       @running = false
+      @checking_for_updates = false
+      self
     end
 
     def start
-      @timer = EventMachine::PeriodicTimer.new(@interval) { self.check_for_updates }
+      @timer = EventMachine::PeriodicTimer.new(self.interval) { self.check_for_updates }
       @running = true
       self
     end
@@ -21,36 +22,65 @@ module PeriodicChecker
       self
     end
 
-    def execute(previous_val = nil, current_val = nil)
-      if @block.arity < 1
-        @block.call
-      elsif @block.arity == 1
-        @block.call(previous_val)
-      else
-        @block.call(previous_val, current_val)
+    def do_on_change(&block)
+      @do_update = block
+      self
+    end
+
+    def check_for_change(&block)
+      @check_update = Proc.new do
+        block.call(self)
+      end
+      self
+    end
+
+    def check_for_change!(&block)
+      @check_update = Proc.new do
+        self.check_for_update_callback(block.call(self))
       end
     end
 
-    def execute!(*args)
+    def to_proc
+      self.check_for_update_callback
+    end
+
+    def check_for_update_callback
+      @check_for_update_callback ||= Proc.new do |new_value|
+        self.on_new_value(new_value)
+      end
+    end
+
+    def on_change(previous_value = nil, current_value = nil)
+      if @do_update.arity < 1
+        @do_update.call
+      elsif @do_update.arity == 1
+        @do_update.call(previous_value)
+      else
+        @do_update.call(previous_value, current_value)
+      end
+    end
+
+    def on_change!(*args)
       begin
-        result = self.execute(*args)
+        result = self.on_change(*args)
       rescue StopIteration
-        # stop this checker
-      ensure
         self.stop
       end
       result
     end
 
+    def on_new_value(new_value)
+      if new_value != @previous_value
+        on_change!(@previous_value, new_value)
+        @previous_value = new_value
+      end
+    end
+
     def check_for_updates
-      if @proc_to_check
-        current_value = @proc_to_check.call
-        if current_value != @previous_value
-          execute!(@previous_value, current_value)
-          @previous_value = current_value
-        end
+      if @check_update
+        @check_update.call
       else
-        execute!
+        self.on_change!
       end
     end
   end

@@ -16,6 +16,12 @@ module PeriodicChecker
       self
     end
 
+    def start!
+      self.start
+      self.check_for_updates
+      self
+    end
+
     def stop
       @timer.cancel
       @running = false

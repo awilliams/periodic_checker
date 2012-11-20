@@ -6,6 +6,10 @@ module PeriodicChecker
       self.new(*args, &block).start
     end
 
+    def self.start!(*args, &block)
+      self.new(*args, &block).start!
+    end
+
     def initialize(&block)
       @watchers = []
       @running = false
@@ -29,14 +33,20 @@ module PeriodicChecker
       @running
     end
 
-    def start
+    def start_watchers(&each_watcher)
       unless self.running?
-        self.each do |watcher|
-          watcher.start
-        end
+        self.each(&each_watcher)
         @running = true
       end
       self
+    end
+
+    def start
+      self.start_watchers { |watcher| watcher.start }
+    end
+
+    def start!
+      self.start_watchers { |watcher| watcher.start! }
     end
 
     def stop
